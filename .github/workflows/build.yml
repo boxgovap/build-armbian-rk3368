@@ -55,15 +55,15 @@ jobs:
       - name: Configure Board & SoC (RK3368 Geekbox / Zidoo X6 Pro)
         run: |
           cd build
-          mkdir -p userpatches/config/boards
+          mkdir -p config/boards userpatches/config/boards
           
           # Cấu hình board Geekbox / Zidoo X6 Pro RK3368
-          cat << 'EOF' > userpatches/config/boards/geekbox.csc
+          cat << 'EOF' | tee config/boards/geekbox.csc userpatches/config/boards/geekbox.csc
           BOARD_NAME="Geekbox / Zidoo X6 Pro"
           BOARDFAMILY="rockchip64"
           BOOTCONFIG="geekbox_defconfig"
           BOOT_SOC="rk3368"
-          KERNEL_TARGET="${BRANCH:-current}"
+          KERNEL_TARGET="current,edge"
           FULL_DESKTOP="no"
           BOOT_LOGO="desktop"
           BOOT_FS_TYPE="ext4"
@@ -81,14 +81,29 @@ jobs:
             BUILD_DESKTOP=no \
             KERNEL_ONLY=no \
             KERNEL_CONFIGURE=no \
+            EXPERT=yes \
+            BETA=yes \
+            NO_HOST_RELEASE_CHECK=yes \
             USE_DOCKER=no \
             COMPRESS_OUTPUTIMAGE=sha,img,xz
 
       - name: List Output Files
+        if: always()
         run: |
           ls -lah build/output/images/ || true
+          ls -lah build/output/debug/ || true
+
+      - name: Upload Debug Logs on Failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Armbian_Build_Debug_Logs
+          path: build/output/debug/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Upload Armbian Image Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Armbian_Debian_Bookworm_RK3368_ZidooX6Pro
