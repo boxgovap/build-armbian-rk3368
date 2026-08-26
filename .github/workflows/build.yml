@@ -1,0 +1,85 @@
+name: Build Armbian Debian 12 Bookworm for RK3368 (Zidoo X6 Pro / Geekbox)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Kernel Branch (current = 6.6 LTS, edge = 6.12+)'
+        required: true
+        default: 'current'
+        type: choice
+        options:
+          - current
+          - edge
+      release:
+        description: 'Debian/Ubuntu Release'
+        required: true
+        default: 'bookworm'
+        type: choice
+        options:
+          - bookworm
+          - trixie
+          - noble
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: true
+
+      - name: Checkout Armbian Build Framework
+        uses: actions/checkout@v4
+        with:
+          repository: armbian/build
+          path: build
+
+      - name: Configure Board & SoC (RK3368 Geekbox / Zidoo X6 Pro)
+        run: |
+          cd build
+          mkdir -p userpatches/config/boards
+          
+          # Cấu hình board Geekbox / Zidoo X6 Pro RK3368
+          cat << 'EOF' > userpatches/config/boards/geekbox.csc
+          BOARD_NAME="Geekbox / Zidoo X6 Pro"
+          BOARDFAMILY="rockchip64"
+          BOOTCONFIG="geekbox_defconfig"
+          BOOT_SOC="rk3368"
+          KERNEL_TARGET="${BRANCH:-current}"
+          FULL_DESKTOP="no"
+          BOOT_LOGO="desktop"
+          BOOT_FS_TYPE="ext4"
+          ARCH="arm64"
+          EOF
+
+      - name: Build Armbian Image
+        run: |
+          cd build
+          ./compile.sh \
+            BOARD=geekbox \
+            BRANCH=${{ github.event.inputs.branch }} \
+            RELEASE=${{ github.event.inputs.release }} \
+            BUILD_MINIMAL=yes \
+            BUILD_DESKTOP=no \
+            KERNEL_ONLY=no \
+            KERNEL_CONFIGURE=no \
+            COMPRESS_OUTPUTIMAGE=sha,img,xz
+
+      - name: List Output Files
+        run: |
+          ls -lah build/output/images/
+
+      - name: Upload Armbian Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Armbian_Debian_Bookworm_RK3368_ZidooX6Pro
+          path: build/output/images/*.img.xz
+          retention-days: 30
